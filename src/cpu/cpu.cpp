@@ -22,7 +22,9 @@
 #include <stddef.h>
 #include "dosbox.h"
 #include "cpu.h"
-#include "memory.h"
+#ifndef __native_client__
+#  include "memory.h"
+#endif
 #include "debug.h"
 #include "mapper.h"
 #include "setup.h"

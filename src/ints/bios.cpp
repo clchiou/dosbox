@@ -490,11 +490,10 @@ static Bitu INT11_Handler(void) {
 
 static void BIOS_HostTimeSync() {
 	/* Setup time and date */
-	struct timeb timebuffer;
-	ftime(&timebuffer);
-	
+	time_t curtime;
 	struct tm *loctime;
-	loctime = localtime (&timebuffer.time);
+	curtime = time (NULL);
+	loctime = localtime (&curtime);
 
 	/*
 	loctime->tm_hour = 23;
@@ -512,8 +511,8 @@ static void BIOS_HostTimeSync() {
 	Bit32u ticks=(Bit32u)(((double)(
 		loctime->tm_hour*3600*1000+
 		loctime->tm_min*60*1000+
-		loctime->tm_sec*1000+
-		timebuffer.millitm))*(((double)PIT_TICK_RATE/65536.0)/1000.0));
+		loctime->tm_sec*1000
+		))*(((double)PIT_TICK_RATE/65536.0)/1000.0));
 	mem_writed(BIOS_TIMER,ticks);
 }
 

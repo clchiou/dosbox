@@ -133,7 +133,11 @@ return_address:
 		"pushl %%ebp						\n"
 		"pushl $(run_return_adress)			\n"
 		"pushl  %2							\n"
+#ifndef __native_client__
 		"jmp  *%3							\n"
+#else
+		"nacljmp  %3							\n"
+#endif
 		"run_return_adress:					\n"
 		"popl %%ebp							\n"
 		:"=a" (retval), "=c" (tempflags)

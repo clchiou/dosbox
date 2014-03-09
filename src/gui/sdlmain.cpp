@@ -53,9 +53,15 @@
 #define MAPPERFILE "mapper-" VERSION ".map"
 //#define DISABLE_JOYSTICK
 
+#ifdef __native_client__
+#undef C_OPENGL
+#define C_OPENGL 1
+#endif
+
 #if C_OPENGL
 #include "SDL_opengl.h"
 
+#ifndef __native_client__
 #ifndef APIENTRY
 #define APIENTRY
 #endif
@@ -87,6 +93,7 @@ PFNGLDELETEBUFFERSARBPROC glDeleteBuffersARB = NULL;
 PFNGLBUFFERDATAARBPROC glBufferDataARB = NULL;
 PFNGLMAPBUFFERARBPROC glMapBufferARB = NULL;
 PFNGLUNMAPBUFFERARBPROC glUnmapBufferARB = NULL;
+#endif // __native_client__
 
 #endif //C_OPENGL
 
@@ -175,6 +182,10 @@ struct SDL_Block {
 	} desktop;
 #if C_OPENGL
 	struct {
+#ifdef __native_client__
+		GLfloat tex_width;
+		GLfloat tex_height;
+#endif // __native_client__
 		Bitu pitch;
 		void * framebuf;
 		GLuint buffer;
@@ -403,6 +414,7 @@ static int int_log2 (int val) {
 static SDL_Surface * GFX_SetupSurfaceScaled(Bit32u sdl_flags, Bit32u bpp) {
 	Bit16u fixedWidth;
 	Bit16u fixedHeight;
+	static bool set_video_mode_once;
 
 	if (sdl.desktop.fullscreen) {
 		fixedWidth = sdl.desktop.full.fixed ? sdl.desktop.full.width : 0;
@@ -439,7 +451,14 @@ static SDL_Surface * GFX_SetupSurfaceScaled(Bit32u sdl_flags, Bit32u bpp) {
 		sdl.clip.x=0;sdl.clip.y=0;
 		sdl.clip.w=(Bit16u)(sdl.draw.width*sdl.draw.scalex);
 		sdl.clip.h=(Bit16u)(sdl.draw.height*sdl.draw.scaley);
-		sdl.surface=SDL_SetVideoMode(sdl.clip.w,sdl.clip.h,bpp,sdl_flags);
+		if (!set_video_mode_once) {
+			// TODO(clchiou): Figure out why if we call
+			//   SDL_SetVideoMode
+			// more than once here (or anywhere?), we will have
+			// no display.
+			sdl.surface=SDL_SetVideoMode(sdl.clip.w,sdl.clip.h,bpp,sdl_flags);
+			set_video_mode_once = true;
+		}
 		return sdl.surface;
 	}
 }
@@ -453,6 +472,26 @@ void GFX_TearDown(void) {
 		sdl.blit.surface=0;
 	}
 }
+
+#ifdef __native_client__
+static void GFX_BindTexture() {
+	glBindTexture(GL_TEXTURE_2D, sdl.opengl.texture);
+	glBegin(GL_QUADS);
+	// lower left
+	glTexCoord2f(0, sdl.opengl.tex_height);
+	glVertex2f(-1.0f,-1.0f);
+	// lower right
+	glTexCoord2f(sdl.opengl.tex_width, sdl.opengl.tex_height);
+	glVertex2f(1.0f, -1.0f);
+	// upper right
+	glTexCoord2f(sdl.opengl.tex_width, 0);
+	glVertex2f(1.0f, 1.0f);
+	// upper left
+	glTexCoord2f(0,0);
+	glVertex2f(-1.0f, 1.0f);
+	glEnd();
+}
+#endif // __native_client__
 
 Bitu GFX_SetSize(Bitu width,Bitu height,Bitu flags,double scalex,double scaley,GFX_CallBack_t callback) {
 	if (sdl.updating)
@@ -670,6 +709,11 @@ dosurface:
 
 		GLfloat tex_width=((GLfloat)(width)/(GLfloat)texsize);
 		GLfloat tex_height=((GLfloat)(height)/(GLfloat)texsize);
+
+#ifdef __native_client__
+		sdl.opengl.tex_width = tex_width;
+		sdl.opengl.tex_height = tex_height;
+#endif // __native_client__
 
 		if (glIsList(sdl.opengl.displaylist)) glDeleteLists(sdl.opengl.displaylist, 1);
 		sdl.opengl.displaylist = glGenLists(1);
@@ -934,7 +978,11 @@ void GFX_EndUpdate( const Bit16u *changedLines ) {
 					sdl.draw.width, sdl.draw.height, GL_BGRA_EXT,
 					GL_UNSIGNED_INT_8_8_8_8_REV, 0);
 			glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_EXT, 0);
+#ifdef __native_client__
+			GFX_BindTexture();
+#else
 			glCallList(sdl.opengl.displaylist);
+#endif // __native_client__
 			SDL_GL_SwapBuffers();
 		} else if (changedLines) {
 			Bitu y = 0, index = 0;
@@ -952,7 +1000,11 @@ void GFX_EndUpdate( const Bit16u *changedLines ) {
 				}
 				index++;
 			}
+#ifdef __native_client__
+			GFX_BindTexture();
+#else
 			glCallList(sdl.opengl.displaylist);
+#endif // __native_client__
 			SDL_GL_SwapBuffers();
 		}
 		break;
@@ -1242,12 +1294,14 @@ static void GUI_StartUp(Section * sec) {
 	sdl.opengl.texture=0;
 	sdl.opengl.displaylist=0;
 	glGetIntegerv (GL_MAX_TEXTURE_SIZE, &sdl.opengl.max_texsize);
+#ifndef __native_client__
 	glGenBuffersARB = (PFNGLGENBUFFERSARBPROC)SDL_GL_GetProcAddress("glGenBuffersARB");
 	glBindBufferARB = (PFNGLBINDBUFFERARBPROC)SDL_GL_GetProcAddress("glBindBufferARB");
 	glDeleteBuffersARB = (PFNGLDELETEBUFFERSARBPROC)SDL_GL_GetProcAddress("glDeleteBuffersARB");
 	glBufferDataARB = (PFNGLBUFFERDATAARBPROC)SDL_GL_GetProcAddress("glBufferDataARB");
 	glMapBufferARB = (PFNGLMAPBUFFERARBPROC)SDL_GL_GetProcAddress("glMapBufferARB");
 	glUnmapBufferARB = (PFNGLUNMAPBUFFERARBPROC)SDL_GL_GetProcAddress("glUnmapBufferARB");
+#endif // __native_client__
 	const char * gl_ext = (const char *)glGetString (GL_EXTENSIONS);
 	if(gl_ext && *gl_ext){
 		sdl.opengl.packed_pixel=(strstr(gl_ext,"EXT_packed_pixels") > 0);
@@ -1899,7 +1953,10 @@ int main(int argc, char* argv[]) {
 	 */
 	putenv(const_cast<char*>("SDL_DISABLE_LOCK_KEYS=1"));
 #endif
-	if ( SDL_Init( SDL_INIT_AUDIO|SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_CDROM
+	if ( SDL_Init( SDL_INIT_AUDIO|SDL_INIT_VIDEO|SDL_INIT_TIMER
+#ifndef __native_client__
+		|SDL_INIT_CDROM
+#endif
 		|SDL_INIT_NOPARACHUTE
 		) < 0 ) E_Exit("Can't init SDL %s",SDL_GetError());
 	sdl.inited = true;
