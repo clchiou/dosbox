@@ -1,0 +1,2 @@
+PACKAGE_NAME=dosbox-svn
+DEPENDS=(libpng sdl zlib)
