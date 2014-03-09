@@ -60,11 +60,13 @@
 #define ftruncate(blah,blah2) chsize(blah,blah2)
 #endif
 
+#if !defined(__native_client__)
 //Solaris maybe others
 #if defined (DB_HAVE_NO_POWF)
 #include <math.h>
 static inline float powf (float x, float y) { return (float) pow (x,y); }
 #endif
+#endif // !defined(__native_client__)
 
 class Cross {
 public:
