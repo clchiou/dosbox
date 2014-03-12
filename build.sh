@@ -14,7 +14,8 @@ ConfigureStep() {
   ChangeDir ${BUILD_DIR}
   DefaultConfigureStep
 
-  sed -i "s/-lSDLmain/-lchromedosbox &/" ${BUILD_DIR}/src/Makefile
+  sed -i "s/-lSDLmain/-lnacl_io -lppapi_cpp -lchromedosbox &/" \
+    ${BUILD_DIR}/src/Makefile
 }
 
 InstallStep() {
@@ -24,6 +25,13 @@ InstallStep() {
   fi
 
   DefaultInstallStep
+
+  # XXX: NACL_GLIBC generates dynamically-linked executable and we prefer
+  # statically-linked executable.
+  if [ "${NACL_GLIBC}" = 1 ]; then
+    Banner "Skip copying dosbox.nexe"
+    return
+  fi
 
   Banner "Copy dosbox.nexe"
   local DOSBOX_NEXE="${NACLPORTS_PREFIX_BIN}/dosbox.nexe"
