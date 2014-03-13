@@ -14,7 +14,7 @@ ConfigureStep() {
   ChangeDir ${BUILD_DIR}
   DefaultConfigureStep
 
-  sed -i "s/-lSDLmain/-lnacl_io -lppapi_cpp -lchromedosbox &/" \
+  sed -i "s/-lSDLmain/-lppapi_cpp -lchromedosbox &/" \
     ${BUILD_DIR}/src/Makefile
 }
 
